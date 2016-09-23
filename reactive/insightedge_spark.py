@@ -37,20 +37,19 @@ def restart_services():
     peers = RelationBase.from_state('sparkpeers.joined')
     is_scaled = peers and len(peers.get_nodes()) > 0
     is_master = spark.is_master()
+    is_slave = not is_master or not is_scaled
     master_url = spark.get_master()
+    master_ip = spark.get_master_ip()
     if data_changed('insightedge.master_url', master_url):
         stop_datagrid_services()
-        start_datagrid_services(master_url,
-                                is_master,
-                                not is_master or not is_scaled)
+        start_datagrid_services(master_url, master_ip,
+                                is_master, is_slave)
     set_state('insightedge.ready')
     hookenv.status_set('active', 'ready')
 
 
-def start_datagrid_services(master_url, is_master, is_slave):
+def start_datagrid_services(master_url, master_ip, is_master, is_slave):
     # TODO:
-    #   * only start datagrid-master when on spark-master unit
-    #   * only start datagrid-slave when on spark-slave unit
     #   * some of the below settings should be exposed as charm config
     dc = get_dist_config()
     ie_home = dc.path('spark')
@@ -61,7 +60,7 @@ def start_datagrid_services(master_url, is_master, is_slave):
     if is_slave:
         subprocess.call([ie_home / "sbin" / "start-datagrid-slave.sh",
                          "--master", master_url,
-                         "--locator", "localhost:4174",
+                         "--locator", "{}:4174".format(master_ip),
                          "--group", "insightedge",
                          "--name", "insightedge-space",
                          "--topology", "2,0",
