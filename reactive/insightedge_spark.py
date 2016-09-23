@@ -1,7 +1,13 @@
+import os
 import subprocess
 
 from charms.reactive import when, when_not, set_state
+from charms.reactive.helpers import data_changed
+from charms.reactive import RelationBase
 from charmhelpers.core import host
+from charmhelpers.core import hookenv
+
+from jujubigdata import utils
 
 from charms.layer.apache_spark import Spark
 from charms.layer.hadoop_client import get_dist_config
@@ -22,3 +28,54 @@ def configure_insightedge_spark():
         ], env={'INSIGHTEDGE_HOME': destination}).decode('utf8')
     spark.register_classpaths(insightedge_jars.split(','))
     set_state('insightedge-spark.configured')
+
+
+@when('insightedge-spark.configured')
+def restart_services():
+    dc = get_dist_config()
+    spark = Spark(dc)
+    peers = RelationBase.from_state('sparkpeers.joined')
+    is_scaled = peers and len(peers.get_nodes()) > 0
+    is_master = spark.is_master()
+    master_url = spark.get_master()
+    if data_changed('insightedge.master_url', master_url):
+        stop_datagrid_services()
+        start_datagrid_services(master_url,
+                                is_master,
+                                not is_master or not is_scaled)
+    set_state('insightedge.ready')
+    hookenv.status_set('active', 'ready')
+
+
+def start_datagrid_services(master_url, is_master, is_slave):
+    # TODO:
+    #   * only start datagrid-master when on spark-master unit
+    #   * only start datagrid-slave when on spark-slave unit
+    #   * some of the below settings should be exposed as charm config
+    dc = get_dist_config()
+    ie_home = dc.path('spark')
+    if is_master:
+        subprocess.call([ie_home / "sbin" / "start-datagrid-master.sh",
+                         "-m", "localhost",
+                         "-s", "1G"])
+    if is_slave:
+        subprocess.call([ie_home / "sbin" / "start-datagrid-slave.sh",
+                         "--master", master_url,
+                         "--locator", "localhost:4174",
+                         "--group", "insightedge",
+                         "--name", "insightedge-space",
+                         "--topology", "2,0",
+                         "--size", "1G",
+                         "--instances", "id=1;id=2"])
+
+
+def stop_datagrid_services():
+    dc = get_dist_config()
+    ie_home = dc.path('spark')
+    if utils.jps("insightedge.marker=master"):
+        d = dict(os.environ)
+        d["TIMEOUT"] = str(10)
+        subprocess.call([ie_home / "sbin" / "stop-datagrid-master.sh"],
+                        env=d)
+    if utils.jps("insightedge.marker=slave"):
+        subprocess.call([ie_home / "sbin" / "stop-datagrid-slave.sh"])
