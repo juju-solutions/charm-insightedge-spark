@@ -1,0 +1,6 @@
+repo: git@github.com:juju-solutions/charm-insightedge-spark.git
+includes: ['layer:apache-spark']
+resources:
+  deletes:
+    # disable fallback to S3
+    - optional_resources

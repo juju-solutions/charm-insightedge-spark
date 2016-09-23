@@ -1,0 +1,8 @@
+name: insightedge-spark
+summary: InsightEdge's distribution of Apache Spark is a fast engine for large-scale data processing
+maintainer: Juju Big Data <bigdata@lists.ubuntu.com>
+description: |
+  Apache Spark is a fast and general engine for large-scale data processing.
+
+  This distribution adds the InsightEdge platform to add fast in-memory
+  data-grid processing, among other features.
