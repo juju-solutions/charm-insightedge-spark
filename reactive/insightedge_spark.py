@@ -16,6 +16,7 @@ from charms.layer.hadoop_client import get_dist_config
 @when('spark.installed')
 @when_not('insightedge-spark.configured')
 def configure_insightedge_spark():
+    hookenv.status_set('maintenance', 'configuring insightedge')
     dc = get_dist_config()
     destination = dc.path('spark')
     spark = Spark(dc)
@@ -55,8 +56,8 @@ def start_datagrid_services(master_url, master_ip, is_master, is_slave):
     ie_home = dc.path('spark')
     if is_master:
         subprocess.call([ie_home / "sbin" / "start-datagrid-master.sh",
-                         "-m", "localhost",
-                         "-s", "1G"])
+                         "--master", master_ip,
+                         "--size", "1G"])
     if is_slave:
         subprocess.call([ie_home / "sbin" / "start-datagrid-slave.sh",
                          "--master", master_url,
